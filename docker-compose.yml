@@ -1,0 +1,65 @@
+# Local development infrastructure
+# Run: docker compose up -d
+# This starts Redis, PostgreSQL+pgvector, and TensorZero gateway locally.
+# The FastAPI app itself runs on your host machine (not in Docker).
+
+services:
+  # ─── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 3
+
+  # ─── PostgreSQL + pgvector ──────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: researchdb
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 5
+
+  # ─── TensorZero LLM Gateway ────────────────────────────────────────────────
+  tensorzero:
+    build:
+      context: .
+      dockerfile: tensorzero/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      - postgres
+
+  # ─── PyRIT Red Team Dashboard ───────────────────────────────────────────────
+  pyrit:
+    build:
+      context: .
+      dockerfile: pyrit_dashboard/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      # Points to the FastAPI app running on your host machine
+      - TARGET_URL=http://host.docker.internal:8000
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
+  pg_data:
+
