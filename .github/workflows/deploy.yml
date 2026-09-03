@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [abc]
 
 env:
   AWS_REGION: us-east-1
